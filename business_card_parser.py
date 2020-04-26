@@ -16,17 +16,20 @@ class BusinessCardParser:
     """
     
     ignore_phone_types = ['fax', '(f)']
+    # common first names
     first_names = set(nltk_names.words('male.txt') + nltk_names.words('female.txt'))
+    # a short list of common words in company names
+    business_names = ['Analytics', 'Corporation', 'Engineering', 'Incorporated', 'Innovations', 
+                      'LLC', 'LTD', 'Software', 'Solutions', 'Systems', 'Technologies', 'Technology']
     
     
     @staticmethod
     def parse_name(document):
         """
         parse_name - parse a person's name from a string of text from a 
-            business card. Assumes two word name, common first name, and
-            business names do not start with a common first name.
+            business card. Assumes the person's first name is either a common
+            name or a shortened substring of a common name
                     
-        
         Args:
             document (str): The text of a business card.
             
@@ -35,17 +38,18 @@ class BusinessCardParser:
         """
         document = document.split('\n')
         # keep only two word names and remove any lines containg numbers
-        potential_names = [line for line in document if re.findall('^[a-zA-z]+\s[a-zA-Z]+', line) and not re.search('\d', line)]
-        #print(potential_names)
+        potential_names = [line for line in document if
+                           re.findall('^[a-z]+[a-z ]*.?[a-z ,\'-]+', line, re.IGNORECASE) and not re.search('\d', line)]
         name = []
 
         for pn in potential_names:
-            first_name = pn.split()[0]
-            first_name = first_name.lower()
-            #print(first_name)
-            if any(first_name in fn.lower() for fn in  BusinessCardParser.first_names):
+            # skip any lines containing business words
+            if any(business_name in pn for business_name in BusinessCardParser.business_names):
+                continue
+            
+            first_name = pn.split()[0].lower()
+            if any(first_name in fn.lower() for fn in BusinessCardParser.first_names):
                 name.append(pn)
-                #print(pn)
         
         
         if len(name) == 0:
@@ -59,7 +63,8 @@ class BusinessCardParser:
         """
         parse_phone_number - parse a person's phone number from a string of 
             text from a business card. Assumes there is only one valid phone
-            number, otherwise returns the first listed.
+            number, otherwise returns the first listed. Will keep phone 
+            extensions as show them as x### at the end of the phone number
         
         Args:
             document (str): The text of a business card.
@@ -68,7 +73,7 @@ class BusinessCardParser:
             phone_number: The phone number from the card or None if no number 
                           found.
         """
-        phone_num_regex = '[^\n]*\+?\d?[^\S\n\t]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}'
+        phone_num_regex = '[^\n]*\+?\d?[^\S\n\t]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}[ ext\.\d]*'
         phone_numbers = re.findall(phone_num_regex, document)
         
         # for all phone numbers found, remove ignored types
@@ -80,8 +85,8 @@ class BusinessCardParser:
         if len(phone_numbers) == 0:
             return None
         
-        # remove all non-digit characters
-        phone_number = re.sub('[\D]*', '', phone_numbers[0])
+        # remove all non-digit characters except for x in case of extensions
+        phone_number = re.sub('[^\dx]*', '', phone_numbers[0])
         
         return phone_number
     
@@ -122,12 +127,9 @@ class BusinessCardParser:
             ContactInfo - An instance of the ContactInfo class with the
             name, phone number and email address from the business card text.   
         """
-        print("\nget Contact info")
         name = BusinessCardParser.parse_name(document)
-        print(name)
         phone_number = BusinessCardParser.parse_phone_number(document)
-        print(phone_number)
         email_address = BusinessCardParser.parse_email_address(document)
-        print(email_address)
+
         return ContactInfo(name, phone_number, email_address)
 
